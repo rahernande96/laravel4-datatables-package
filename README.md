@@ -2,4 +2,4 @@
 
 ###WARNING
 
-Do not use this package directly, use [Bllim](https://github.com/antonioribeiro/laravel4-datatables-package.git) instead.
+Do not use this package directly, use [Bllim](https://github.com/bllim/laravel4-datatables-package) instead.
