@@ -7,7 +7,7 @@
  *
  * @package  Laravel
  * @category Bundle
- * @version  1.4.4
+ * @version  1.4.5
  * @author   Bilal Gultekin <bilal@bilal.im>
  */
 
@@ -83,10 +83,14 @@ class Datatables
         if (isset($input['draw'])) {
             // DT version 1.10+
 
+            $input['version'] = '1.10';
+
             $formatted_input = $input;
 
         } else {
             // DT version < 1.10
+
+            $formatted_input['version'] = '1.9';
 
             $formatted_input['draw'] = Arr::get($input, 'sEcho', '');
             $formatted_input['start'] = Arr::get($input, 'iDisplayStart', 0);
@@ -357,9 +361,13 @@ class Datatables
         $this->query = $query;
         $this->query_type = $query instanceof \Illuminate\Database\Query\Builder ? 'fluent' : 'eloquent';
         if ($this->dataFullSupport) {
-            $this->columns = array_map(function ($column) {
-                return trim(DB::connection()->getPdo()->quote($column['data']), "'");
-            }, $this->input['columns']);
+            if ($this->query_type == 'eloquent') {
+                $this->columns = array_map(function ($column) {
+                    return trim(DB::connection()->getPdo()->quote($column['data']), "'");
+                }, $this->input['columns']);
+            } else {
+                $this->columns = ($this->query->columns ?: array());
+            }
         } else {
             $this->columns = $this->query_type == 'eloquent' ? ($this->query->getQuery()->columns ?: array()) : ($this->query->columns ?: array());
         }
@@ -608,7 +616,7 @@ class Datatables
      */
     protected function paging()
     {
-        if (!is_null($this->input['start']) && !is_null($this->input['length'])) {
+        if (!is_null($this->input['start']) && !is_null($this->input['length']) && $this->input['length'] != -1) {
             $this->query->skip($this->input['start'])->take((int)$this->input['length'] > 0 ? $this->input['length'] : 10);
         }
     }
@@ -742,7 +750,7 @@ class Datatables
                             $column = $this->prefixColumn($column_names[$i]);
 
                             if (Config::get('datatables::search.case_insensitive', false)) {
-                                $query->orwhere(DB::raw('LOWER(' . $cast_begin . $column . $cast_end . ')'), 'LIKE', strtolower($keyword));
+                                $query->orwhere(DB::raw('LOWER(' . $cast_begin . $column . $cast_end . ')'), 'LIKE', Str::lower($keyword));
                             } else {
                                 $query->orwhere(DB::raw($cast_begin . $column . $cast_end), 'LIKE', $keyword);
                             }
@@ -756,7 +764,7 @@ class Datatables
 
         // column search
         for ($i = 0, $c = count($this->input['columns']); $i < $c; $i++) {
-            if (isset($column_aliases[$i]) && $this->input['columns'][$i]['orderable'] == "true" && $this->input['columns'][$i]['search']['value'] != '') {
+            if (isset($column_aliases[$i]) && $this->input['columns'][$i]['searchable'] == "true" && $this->input['columns'][$i]['search']['value'] != '') {
                 // if filter column exists for this columns then use user defined method
                 if (isset($this->filter_columns[$column_aliases[$i]])) {
 
@@ -791,7 +799,7 @@ class Datatables
                     $column = $this->prefixColumn($column_names[$i]);
 
                     if (Config::get('datatables::search.case_insensitive', false)) {
-                        $this->query->where(DB::raw('LOWER(' . $column . ')'), 'LIKE', strtolower($keyword));
+                        $this->query->where(DB::raw('LOWER(' . $column . ')'), 'LIKE', Str::lower($keyword));
                     } else {
                         //note: so, when would a ( be in the columns?  It will break a select if that's put in the columns
                         //without a DB::raw.  It could get there in filter columns, but it wouldn't be delt with here.
@@ -905,11 +913,12 @@ class Datatables
 
         $names[] = $query->from;
         $joins = $query->joins?:array();
+        $databasePrefix = $this->databasePrefix();
         foreach ($joins as $join) {
             $table = preg_split("/ as /i", $join->table);
             $names[] = $table[0];
-            if (isset($table[1]) && !empty($this->databasePrefix()) && strpos($table[1], $this->databasePrefix()) == 0) {
-                $names[] = preg_replace('/^'.$this->databasePrefix().'/', '', $table[1]);
+            if (isset($table[1]) && !empty($databasePrefix) && strpos($table[1], $databasePrefix) == 0) {
+                $names[] = preg_replace('/^'.$databasePrefix.'/', '', $table[1]);
             }
         }
 
@@ -971,6 +980,9 @@ class Datatables
             }
         }
 
+        // Clear the orders, since they are not relevant for count
+        $countQuery->orders = null;
+
         $this->$count = DB::connection($connection)
             ->table(DB::raw('(' . $countQuery->toSql() . ') AS count_row_table'))
             ->setBindings($countQuery->getBindings())->count();
@@ -1011,7 +1023,7 @@ class Datatables
      */
     protected function output($raw = false)
     {
-        if (Arr::get($this->input, 'draw', false)) {
+        if (Arr::get($this->input, 'version') == '1.10') {
 
             $output = array(
                 "draw"            => intval($this->input['draw']),
@@ -1052,7 +1064,7 @@ class Datatables
      */
     public function __call($name, $arguments)
     {
-        $name = Str::camel(strtolower($name));
+        $name = Str::camel(Str::lower($name));
         if (method_exists($this, $name)) {
             return call_user_func_array(array($this, $name), $arguments);
         } else {
