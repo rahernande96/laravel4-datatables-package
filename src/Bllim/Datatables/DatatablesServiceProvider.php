@@ -28,7 +28,7 @@ class DatatablesServiceProvider extends ServiceProvider {
      */
     public function register()
     {
-        $this->app->singleton('datatables', function($app) {
+        $this->app->singleton('bllimdatatables', function($app) {
             return new Datatables;
         });
     }
