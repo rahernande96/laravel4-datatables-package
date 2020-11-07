@@ -1,5 +1,5 @@
 {
-    "name": "pragmarx/datatables",
+    "name": "rahernande96/datatables",
     "description": "Server-side handler of DataTables Jquery Plugin for Laravel 4",
     "keywords" : ["laravel4","laravel","datatables","datatable","datatables jquery plugin"],
     "license": "MIT",
